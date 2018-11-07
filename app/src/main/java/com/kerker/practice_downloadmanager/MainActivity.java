@@ -36,6 +36,12 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         btn = findViewById(R.id.btn);
+
+        try {//取得APP目前的versionName
+            PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
         btn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -53,8 +59,13 @@ public class MainActivity extends AppCompatActivity {
         Uri uri = Uri.parse(URL);
         request = new DownloadManager.Request(uri);
         request.setMimeType("application/vnd.android.package-archive");//設置MIME為Android APK檔
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {//Android 6.0以上需要判斷使用者是否願意開啟儲存(WRITE_EXTERNAL_STORAGE)的權限
+            CheckStoragePermission();
+        } else {
             DownloadManagerEnqueue();
+        }
     }
+
     private void DownloadManagerEnqueue() {
         //創建目錄
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).mkdir();
@@ -68,6 +79,37 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferencesHelper sp = new SharedPreferencesHelper(getApplicationContext());
         sp.setDownloadID(LatestDownloadID);//儲存DownloadID
     }
+
+    private void CheckStoragePermission() {//Android 6.0檢查是否開啟儲存(WRITE_EXTERNAL_STORAGE)的權限，若否，出現詢問視窗
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(this,
+                Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {//Can add more as per requirement
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE},
+                    20);
+        } else {
+            DownloadManagerEnqueue();
+        }
+    }
+
+    @Override//Android 6.0以上 接收使用者是否允許使用儲存權限
+    public void onRequestPermissionsResult(int requestCode,
+                                           String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case 20: {
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    DownloadManagerEnqueue();
+                } else {
+                    CheckStoragePermission();
+                }
+                return;
+            }
+        }
+    }
+
     class DownloadObserver extends ContentObserver {
         public DownloadObserver(Handler handler) {
             super(handler);
